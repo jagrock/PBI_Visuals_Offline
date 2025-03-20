@@ -25,89 +25,213 @@
       .app-card {
         border: 1px solid #ddd;
         padding: 15px;
-        width: 250px;
+        width: 200px;
       }
       .app-card img {
-        width: 100%;
+        width: 50%;
         height: auto;
+      }
+      .table-view {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .table-view th,
+      .table-view td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
       }
     </style>
   </head>
   <body>
     <h1>AppSource Clone</h1>
-    <button onclick="getVisuals()">Get Apps</button>
-    <input
-      type="text"
-      class="search-bar"
-      placeholder="Search for apps..."
-      oninput="filterApps()"
-    />
-    <div class="filters">
-      <label
-        ><input type="checkbox" id="powerBiFilter" onchange="filterApps()" />
-        Power BI Certified</label
-      >
-      <label
-        ><input type="checkbox" id="microsoftFilter" onchange="filterApps()" />
-        Published by Microsoft</label
-      >
+    <button onclick="fetchFromJSON()">Fetch from JSON</button>
+    <button onclick="toggleView()">Toggle View</button>
+    <select id="sortOptions" onchange="sortApps()">
+      <option value="popularity">Sort by Popularity</option>
+      <option value="rating">Sort by Rating</option>
+      <option value="name">Sort by Name</option>
+      <option value="numberofratings">Sort by Number of Ratings</option>
+    </select>
+    <div class="stats">
+      <table>
+          <th>Visuals:</th>
+          <th>Certified:</th>
+          <th>Microsoft:</th>
+          <tr>
+          <td><span id="numVisuals">0</span></td>
+          <td><span id="numCertified">0</span></td>
+          <td><span id="numMicrosoft">0</span></td>
+        </tr>
+      </table>
     </div>
-    <div class="app-container" id="appContainer"></div>
+    <div class="filters"></div>
+      <input
+        type="text"
+        class="search-bar"
+        placeholder="Search for apps..."
+        oninput="filterApps()"
+      />
+      <label>
+        Matching: <span id="numMatching">0</span>
+      </label>
+      <label>
+        <input type="checkbox" id="powerBiFilter" onchange="filterApps()" />
+        Power BI Certified</label>
+      <label>
+        <input type="checkbox" id="microsoftFilter" onchange="filterApps()" />
+        Published by Microsoft
+      </label>
+      <label><input type="checkbox" id="freeFilter" onchange="filterApps()" />
+        Free</label>
+    </div>
+
+    <div id="appContainer" class="app-container"></div>
+    <table id="appTable" class="table-view" style="display: none" onchange="countVisibleRows()">
+      <caption id="rowCount" style="text-align: left;"></caption>
+      <thead>
+        <tr>
+          <th>Icon</th>
+          <th>Title</th>
+          <th>Description</th>
+          <th>Publisher</th>
+          <th>AppSource Link</th>
+          <th>Download Visual</th>
+          <th>Download Sample</th>
+          <th>is Freemium</th>
+          <th>has Prices</th>
+          <th>Rating</th>
+          <th>License is Microsoft Managed</th>
+          <th>Plan Pricing Type</th>
+          <th>Offer Type</th>
+          <th>Pricing Model</th>
+          <th>is Free</th>
+          <th>has Trials</th>
+          <th>Power BI Certified</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
     <script>
+      let isTableView = false;
       const appSourceURI =
         "https://appsource.microsoft.com/view/tiledata?ReviewsMyCommentsFilter=true&country=US&entityType=App&product=power-bi-visuals&region=ALL";
-      async function fetchApps() {
+
+      function toggleView() {
+        isTableView = !isTableView;
+        document.getElementById("appContainer").style.display = isTableView
+          ? "none"
+          : "flex";
+        document.getElementById("appTable").style.display = isTableView
+          ? "table"
+          : "none";
+      }
+
+      function appSourceUrl(entityId) {
+        return `https://appsource.microsoft.com/en-us/product/power-bi-visuals/${entityId}?tab=Overview`;
+      }
+
+      async function fetchFromJSON() {
         try {
-          let response = await fetch(appSourceURI);
-          let data = await response.json();
-          renderApps(data.App.datalist);
+          const response = await fetch("visuals.json");
+          const data = await response.json();
+          console.log(`Visuals found: ${data.length}`);
+          renderApps(data);
+          document.getElementById("numVisuals").innerText = data.length;
+          document.getElementById("numCertified").innerText = data.filter(
+            (app) => app.tags && app.tags.includes("PowerBICertified")
+          ).length;
+          document.getElementById("numMicrosoft").innerText = data.filter(
+            (app) => app.publisher.includes("Microsoft Corporation")
+          ).length;
         } catch (error) {
-          console.error("Error fetching app data:", error);
+          console.error("Error loading JSON:", error);
         }
       }
 
-      const getVisuals = async () => {
-        console.log(appSourceURI)
-        const response = await fetch(appSourceURI, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            mode: "no-cors"
-          },
-        });
-        const jsonApps = await response.json();
-        console.log(jsonApps)
-      };
-
       function renderApps(apps) {
         let container = document.getElementById("appContainer");
+        let tableBody = document.querySelector("#appTable tbody");
         container.innerHTML = "";
+        tableBody.innerHTML = "";
+
+        // Function to generate star rating HTML
+        function generateStarRating(rating) {
+          let fullStars = Math.floor(rating);
+          let halfStar = rating % 1 >= 0.5 ? 1 : 0;
+          let emptyStars = 5 - fullStars - halfStar;
+          return (
+            "★".repeat(fullStars) +
+            (halfStar ? "&#x2BEA;" : "") +
+            "☆".repeat(emptyStars)
+          );
+        }
+
         apps.forEach((app) => {
           let appCard = document.createElement("div");
+
+          let isPBICertified = app.tags ? app.tags.includes("PowerBICertified") : false;
+          let isMicrosoft = app.publisher.includes("Microsoft Corporation");
+          let isFree = app.pricingModel == 1;
+
           appCard.className = "app-card";
-          appCard.setAttribute("data-name", app.Title);
-          appCard.setAttribute(
-            "data-powerbi",
-            app.IsPowerBICertified ? "true" : "false"
-          );
-          appCard.setAttribute(
-            "data-microsoft",
-            app.PublisherName === "Microsoft" ? "true" : "false"
-          );
+          appCard.setAttribute("data-name", app.title);
+          appCard.setAttribute("data-powerbicertified", isPBICertified || "false");
+          appCard.setAttribute("data-microsoft", isMicrosoft || "false");
+          appCard.setAttribute("data-rating", app.AverageRating);
+          appCard.setAttribute("data-popularity", app.popularity);
+          appCard.setAttribute("data-numberofratings", app.NumberOfRatings);
+          appCard.setAttribute("data-isfree", isFree);
+
+          let appSourceLink = appSourceUrl(app.entityId);
+          let starRating = generateStarRating(app.AverageRating);
+
           appCard.innerHTML = `
-                    <img src="${
-                      app.iconURL || "https://via.placeholder.com/150"
-                    }" alt="${app.Title}">
-                    <h3>${app.title}</h3>
-                    <p>${
-                      app.shortDescription || "No description available."
-                    }</p>
-                    <a href="${app.ListingUrl}" target="_blank">Learn More</a>
-                `;
-          container.appendChild(appCard);
-        });
+            <img src="${app.iconURL || "https://via.placeholder.com/150"}" alt="${app.Title}">
+            <h3>${app.title}</h3>
+            <p>${app.shortDescription || "No description available."}</p>
+            <p>${starRating} (${app.NumberOfRatings})</p>
+            <a href="${appSourceLink || "#"}" target="_blank">Learn More</a>
+            <br>
+            <sub><a href="${app.downloadLink}">.pbviz</a></sub>
+            <sub><a href="${app.downloadSampleLink}"">.pbix</a></sub>
+          `;
+        container.appendChild(appCard);
+
+        let row = document.createElement("tr");
+        row.setAttribute("data-name", app.title);
+        row.setAttribute("data-powerbicertified", isPBICertified || "false");
+        row.setAttribute("data-microsoft", isMicrosoft || "false");
+        row.setAttribute("data-rating", app.AverageRating);
+        row.setAttribute("data-popularity", app.popularity);
+        row.setAttribute("data-numberofratings", app.NumberOfRatings);
+        row.setAttribute("data-isfree", isFree);
+        row.setAttribute("data-leadgenenabled", app.leadgenEnabled);
+
+        row.innerHTML = `
+          <td><img src="${app.iconURL || "https://via.placeholder.com/150"}" width="50"></td>
+          <td>${app.Title || app.title}</td>
+          <td>${app.shortDescription || "No description available."}</td>
+          <td>${app.PublisherName || app.publisher}</td>
+          <td><a href="${appSourceLink || "#"}" target="_blank">Learn More</a></td>
+          <td><a href="${app.downloadLink}">.pbviz</a></td>
+          <td><a href="${app.downloadSampleLink}"">.pbix</a></td>
+          <td>${app.licenseManagement.isFreemium}</td>
+          <td>${app.hasPrices}</td>
+          <td>${starRating} (${app.NumberOfRatings})</td>
+          <td>${app.licenseManagement.isMicrosoftManaged}</td>
+          <td>${app.planPricingType}</td>
+          <td>${app.offerType}</td>
+          <td>${app.pricingModel}</td>
+          <td>${isFree}</td>
+          <td>${app.trials}</td>
+          <td>${app.tags || ""}</td>
+          
+        `;
+        tableBody.appendChild(row);
+      });
+      document.getElementById("rowCount").innerText = `Rows: ${document.getElementById("appTable").rows.length - 1}`;
       }
 
       function filterApps() {
@@ -115,20 +239,81 @@
         let powerBiChecked = document.getElementById("powerBiFilter").checked;
         let microsoftChecked =
           document.getElementById("microsoftFilter").checked;
+        let freeChecked = document.getElementById("freeFilter").checked;
         let apps = document.querySelectorAll(".app-card");
+        let rows = document.querySelectorAll("#appTable tbody tr");
 
         apps.forEach((app) => {
           let name = app.getAttribute("data-name").toLowerCase();
-          let isPowerBi = app.getAttribute("data-powerbi") === "true";
+          let isPowerBi = app.getAttribute("data-powerbicertified") === "true";
           let isMicrosoft = app.getAttribute("data-microsoft") === "true";
+          let isFree = app.getAttribute("data-isfree") === "true";
 
           let matchesSearch = name.includes(input);
           let matchesPowerBi = !powerBiChecked || isPowerBi;
           let matchesMicrosoft = !microsoftChecked || isMicrosoft;
+          let matchesFree = !freeChecked || isFree;
 
           app.style.display =
-            matchesSearch && matchesPowerBi && matchesMicrosoft ? "" : "none";
+            matchesSearch && matchesPowerBi && matchesMicrosoft && matchesFree ? "" : "none";
         });
+
+        rows.forEach((row) => {
+          let name = row
+            .querySelector("td:nth-child(2)")
+            .textContent.toLowerCase();
+          let isPowerBi = row.getAttribute("data-powerbicertified") === "true";
+          let isMicrosoft = row.getAttribute("data-microsoft") === "true";
+          let isFree = row.getAttribute("data-isfree") === "true";
+
+          let matchesSearch = name.includes(input);
+          let matchesPowerBi = !powerBiChecked || isPowerBi;
+          let matchesMicrosoft = !microsoftChecked || isMicrosoft;
+          let matchesFree = !freeChecked || isFree;
+
+          row.style.display =
+            matchesSearch && matchesPowerBi && matchesMicrosoft && matchesFree ? "" : "none";
+        });
+
+        countVisibleRows()
+      }
+
+      function sortApps() {
+        let container = document.getElementById("appContainer");
+        let tableBody = document.querySelector("#appTable tbody");
+        let apps = Array.from(document.querySelectorAll(".app-card"));
+        let rows = Array.from(document.querySelectorAll("#appTable tbody tr"));
+        let sortOption = document.getElementById("sortOptions").value;
+
+        function compare(a, b, attribute) {
+          if (attribute === "name") {
+            return a
+              .getAttribute("data-name")
+              .localeCompare(b.getAttribute("data-name"));
+          }
+          return (
+            parseFloat(b.getAttribute(`data-${attribute}`)) -
+            parseFloat(a.getAttribute(`data-${attribute}`))
+          );
+        }
+
+        apps.sort((a, b) => compare(a, b, sortOption));
+        rows.sort((a, b) => compare(a, b, sortOption));
+
+        apps.forEach((app) => container.appendChild(app));
+        rows.forEach((row) => tableBody.appendChild(row));
+      }
+
+      function countVisibleRows() {
+        const rows = document.querySelectorAll('#appTable tr');
+        let visibleCount = 0;
+        rows.forEach(row => {
+            if (row.style.display != 'none') {
+              visibleCount++;
+            }
+        });
+        console.log(visibleCount);
+        document.getElementById("rowCount").innerText = `Rows: ${visibleCount}`;
       }
     </script>
   </body>
