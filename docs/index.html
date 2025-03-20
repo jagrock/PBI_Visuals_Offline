@@ -72,9 +72,7 @@
         placeholder="Search for apps..."
         oninput="filterApps()"
       />
-      <label>
-        Matching: <span id="numMatching">0</span>
-      </label>
+      
       <label>
         <input type="checkbox" id="powerBiFilter" onchange="filterApps()" />
         Power BI Certified</label>
@@ -85,8 +83,12 @@
       <label><input type="checkbox" id="freeFilter" onchange="filterApps()" />
         Free</label>
     </div>
+    <p><label><span id="numMatching"></span>
+    </label></p>
 
-    <div id="appContainer" class="app-container"></div>
+    <div id="appContainer" class="app-container">
+      
+    </div>
     <table id="appTable" class="table-view" style="display: none" onchange="countVisibleRows()">
       <caption id="rowCount" style="text-align: left;"></caption>
       <thead>
@@ -231,7 +233,7 @@
         `;
         tableBody.appendChild(row);
       });
-      document.getElementById("rowCount").innerText = `Rows: ${document.getElementById("appTable").rows.length - 1}`;
+      countVisibleRows();
       }
 
       function filterApps() {
@@ -305,7 +307,8 @@
       }
 
       function countVisibleRows() {
-        const rows = document.querySelectorAll('#appTable tr');
+        let rows = document.querySelectorAll('#appTable tr');
+        let apps = document.querySelectorAll(".app-card");
         let visibleCount = 0;
         rows.forEach(row => {
             if (row.style.display != 'none') {
@@ -313,7 +316,8 @@
             }
         });
         console.log(visibleCount);
-        document.getElementById("rowCount").innerText = `Rows: ${visibleCount}`;
+        //document.getElementById("rowCount").innerText = `Rows: ${visibleCount}`;
+        document.getElementById("numMatching").innerText = `Matches: ${visibleCount}`;
       }
     </script>
   </body>
