@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AppSource Clone</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      .search-bar {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 20px;
+      }
+      .filters {
+        margin-bottom: 20px;
+      }
+      .app-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+      }
+      .app-card {
+        border: 1px solid #ddd;
+        padding: 15px;
+        width: 250px;
+      }
+      .app-card img {
+        width: 100%;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AppSource Clone</h1>
+    <button onclick="getVisuals()">Get Apps</button>
+    <input
+      type="text"
+      class="search-bar"
+      placeholder="Search for apps..."
+      oninput="filterApps()"
+    />
+    <div class="filters">
+      <label
+        ><input type="checkbox" id="powerBiFilter" onchange="filterApps()" />
+        Power BI Certified</label
+      >
+      <label
+        ><input type="checkbox" id="microsoftFilter" onchange="filterApps()" />
+        Published by Microsoft</label
+      >
+    </div>
+    <div class="app-container" id="appContainer"></div>
+
+    <script>
+      const appSourceURI =
+        "https://appsource.microsoft.com/view/tiledata?ReviewsMyCommentsFilter=true&country=US&entityType=App&product=power-bi-visuals&region=ALL";
+      async function fetchApps() {
+        try {
+          let response = await fetch(appSourceURI);
+          let data = await response.json();
+          renderApps(data.App.datalist);
+        } catch (error) {
+          console.error("Error fetching app data:", error);
+        }
+      }
+
+      const getVisuals = async () => {
+        console.log(appSourceURI)
+        const response = await fetch(appSourceURI, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          },
+        });
+        const jsonApps = await response.json();
+        console.log(jsonApps)
+      };
+
+      function renderApps(apps) {
+        let container = document.getElementById("appContainer");
+        container.innerHTML = "";
+        apps.forEach((app) => {
+          let appCard = document.createElement("div");
+          appCard.className = "app-card";
+          appCard.setAttribute("data-name", app.Title);
+          appCard.setAttribute(
+            "data-powerbi",
+            app.IsPowerBICertified ? "true" : "false"
+          );
+          appCard.setAttribute(
+            "data-microsoft",
+            app.PublisherName === "Microsoft" ? "true" : "false"
+          );
+          appCard.innerHTML = `
+                    <img src="${
+                      app.iconURL || "https://via.placeholder.com/150"
+                    }" alt="${app.Title}">
+                    <h3>${app.title}</h3>
+                    <p>${
+                      app.shortDescription || "No description available."
+                    }</p>
+                    <a href="${app.ListingUrl}" target="_blank">Learn More</a>
+                `;
+          container.appendChild(appCard);
+        });
+      }
+
+      function filterApps() {
+        let input = document.querySelector(".search-bar").value.toLowerCase();
+        let powerBiChecked = document.getElementById("powerBiFilter").checked;
+        let microsoftChecked =
+          document.getElementById("microsoftFilter").checked;
+        let apps = document.querySelectorAll(".app-card");
+
+        apps.forEach((app) => {
+          let name = app.getAttribute("data-name").toLowerCase();
+          let isPowerBi = app.getAttribute("data-powerbi") === "true";
+          let isMicrosoft = app.getAttribute("data-microsoft") === "true";
+
+          let matchesSearch = name.includes(input);
+          let matchesPowerBi = !powerBiChecked || isPowerBi;
+          let matchesMicrosoft = !microsoftChecked || isMicrosoft;
+
+          app.style.display =
+            matchesSearch && matchesPowerBi && matchesMicrosoft ? "" : "none";
+        });
+      }
+    </script>
+  </body>
+</html>
